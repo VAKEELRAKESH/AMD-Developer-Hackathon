@@ -1,0 +1,158 @@
+# ═════════════════════════════════════════════════════════════════════
+# AMD AgentForge — Docker Compose (AMD ROCm GPU Stack)
+#
+# Hardware access:
+#   /dev/kfd   — AMD Kernel Fusion Driver  (compute access)
+#   /dev/dri   — Direct Rendering Interface (display/render nodes)
+#   group_add  — video + render groups (required for KFD access)
+#
+# Quick start:
+#   export HF_TOKEN=hf_...
+#   docker compose up --build
+#
+# Free-tier (no GPU):
+#   docker compose -f docker-compose.free-tier.yml up --build
+# ═════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── AMD ROCm vLLM Inference Server ─────────────────────────────────
+  inference:
+    build:
+      context:    ./backend
+      dockerfile: Dockerfile.rocm
+    image: agentforge-inference:latest
+    container_name: agentforge-inference
+    ports:
+      - "8000:8000"
+
+    # AMD GPU device access
+    # /dev/kfd  = Kernel Fusion Driver — user-space compute interface
+    # /dev/dri  = Direct Rendering Infrastructure — render/display nodes
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+
+    # Required group memberships for KFD access without root
+    group_add:
+      - video
+      - render
+
+    environment:
+      # Model & precision
+      - HF_TOKEN=${HF_TOKEN}
+      - VLLM_MODEL=${VLLM_MODEL:-meta-llama/Llama-3.1-8B-Instruct}
+
+      # ROCm kernel tuning
+      # HSA_OVERRIDE_GFX_VERSION: target specific GFX ISA
+      #   11.0.0 = RX 7900 XTX (RDNA3 / gfx1100)
+      #   9.4.2  = MI300X (CDNA3 / gfx940)
+      - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-11.0.0}
+
+      # Disable HIP JIT cache warnings in container
+      - AMD_LOG_LEVEL=0
+
+      # vLLM flags for MI300X:
+      #   --dtype bfloat16              BF16 tensor cores (CDNA3 native)
+      #   --gpu-memory-utilization 0.90 Reserve 10% for OS/driver overhead
+      #   --enable-chunked-prefill      Chunk long prompts into micro-batches
+      #   --max-num-batched-tokens 32768 MI300X HBM3 budget
+      - VLLM_EXTRA_ARGS=--dtype bfloat16 --gpu-memory-utilization 0.90 --enable-chunked-prefill --max-num-batched-tokens 32768
+
+    volumes:
+      # Persist HuggingFace model cache between container restarts
+      - model_cache:/root/.cache/huggingface
+
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: amdgpu
+              count: all
+              capabilities: [compute, utility]
+
+    healthcheck:
+      test:          ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval:      30s
+      timeout:       10s
+      retries:       5
+      start_period:  120s    # Allow time for model weights to load from cache
+
+
+  # ── FastAPI + LangGraph Backend ─────────────────────────────────────
+  backend:
+    build:
+      context:    ./backend
+      dockerfile: Dockerfile.api
+    image: agentforge-backend:latest
+    container_name: agentforge-backend
+    ports:
+      - "8080:8080"
+
+    environment:
+      # Route all inference to the local ROCm vLLM server
+      - INFERENCE_BACKEND=vllm_rocm
+      - VLLM_URL=http://inference:8000/v1
+      - VLLM_MODEL=${VLLM_MODEL:-meta-llama/Llama-3.1-8B-Instruct}
+      - HF_TOKEN=${HF_TOKEN}
+
+      # Sandbox config
+      - SANDBOX_ENABLED=true
+      - SANDBOX_TIMEOUT=60
+      - SANDBOX_MEMORY_LIMIT=512m
+
+      # App
+      - APP_PORT=8080
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - LOG_LEVEL=info
+
+    depends_on:
+      inference:
+        condition: service_healthy
+
+    volumes:
+      # Mount Docker socket so the backend can spin up sandbox containers
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    restart: unless-stopped
+
+    healthcheck:
+      test:         ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval:     20s
+      timeout:      5s
+      retries:      3
+      start_period: 15s
+
+
+  # ── Next.js Frontend ────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+    image: agentforge-frontend:latest
+    container_name: agentforge-frontend
+    ports:
+      - "3000:3000"
+
+    environment:
+      # The browser connects to the backend directly (not via Docker network)
+      # because WebSocket traffic originates from the user's browser.
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8080
+
+    depends_on:
+      backend:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+
+volumes:
+  model_cache:
+    # Named volume — persists ~15 GB of model weights across restarts
+    driver: local
+    driver_opts:
+      type:   none
+      o:      bind
+      device: ${MODEL_CACHE_PATH:-/tmp/agentforge-models}

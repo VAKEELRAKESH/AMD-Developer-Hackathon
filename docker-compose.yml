@@ -1,0 +1,69 @@
+# ──────────────────────────────────────────────────────────────
+# Docker Compose — AMD AgentForge Full Stack
+# ──────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+services:
+  # ── AMD GPU Inference Server ──────────────────────────────
+  inference:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.rocm
+    ports:
+      - "8000:8000"
+    devices:
+      - /dev/kfd:/dev/kfd      # AMD Kernel Fusion Driver
+      - /dev/dri:/dev/dri      # Direct Rendering Interface
+    group_add:
+      - video
+      - render
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - VLLM_MODEL=${VLLM_MODEL:-meta-llama/Llama-3.1-8B-Instruct}
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s  # Model loading takes time
+
+  # ── FastAPI Backend ───────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    ports:
+      - "8080:8080"
+    environment:
+      - INFERENCE_BACKEND=vllm_rocm
+      - VLLM_URL=http://inference:8000/v1
+      - HF_TOKEN=${HF_TOKEN}
+      - SANDBOX_ENABLED=true
+      - CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      inference:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # For sandbox containers
+    restart: unless-stopped
+
+  # ── Next.js Frontend (DevDash) ────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8080
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  model_cache:
+    driver: local

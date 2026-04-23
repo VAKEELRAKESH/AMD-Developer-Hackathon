@@ -1,0 +1,98 @@
+name: AgentForge CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+
+jobs:
+  # ── Backend: Lint + Type Check + Test ─────────────────────
+  backend-quality:
+    name: Backend Quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint (Ruff)
+        run: ruff check . --output-format=github
+
+      - name: Format Check (Ruff)
+        run: ruff format --check .
+
+      - name: Type Check (mypy)
+        run: mypy core/ api/ --ignore-missing-imports --no-error-summary
+
+      - name: Test (pytest)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          INFERENCE_BACKEND: hf_api
+          SANDBOX_ENABLED: "false"
+        run: pytest tests/ -v --tb=short --co -q
+
+  # ── Frontend: Lint + Build ────────────────────────────────
+  frontend-quality:
+    name: Frontend Quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  # ── Docker: Build Images ──────────────────────────────────
+  docker-build:
+    name: Docker Build
+    needs: [backend-quality, frontend-quality]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API Image
+        run: |
+          docker build \
+            -f backend/Dockerfile.api \
+            -t agentforge-api:${{ github.sha }} \
+            ./backend
+
+      - name: Build Frontend Image
+        run: |
+          docker build \
+            -t agentforge-frontend:${{ github.sha }} \
+            ./frontend

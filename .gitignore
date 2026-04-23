@@ -1,0 +1,45 @@
+# ── Dependencies ─────────────────────────────────────────────
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# ── Environment ─────────────────────────────────────────────
+.env
+.env.local
+.env.production
+!.env.example
+
+# ── IDE ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Docker ───────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Models (large files) ────────────────────────────────────
+*.bin
+*.safetensors
+*.gguf
+model_cache/
+
+# ── Next.js ─────────────────────────────────────────────────
+.next/
+out/
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+logs/

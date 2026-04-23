@@ -1,0 +1,59 @@
+# ──────────────────────────────────────────────────────────────
+# Dockerfile.rocm — AMD GPU-Accelerated Inference Server
+# Optimized for ROCm 6.0+ with vLLM and FlashAttention-2 HIP
+# ──────────────────────────────────────────────────────────────
+
+FROM rocm/dev-ubuntu-22.04:6.0.2 AS base
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3.11-dev \
+    python3-pip \
+    git \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+
+# ROCm environment variables
+ENV ROCM_HOME=/opt/rocm
+ENV HIP_VISIBLE_DEVICES=0
+ENV HSA_OVERRIDE_GFX_VERSION=11.0.0
+ENV PYTORCH_ROCM_ARCH="gfx900;gfx906;gfx908;gfx90a;gfx942;gfx1100"
+ENV PATH="${ROCM_HOME}/bin:${PATH}"
+
+# Install PyTorch for ROCm 6.0
+RUN pip install --no-cache-dir \
+    torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/rocm6.0
+
+# Install vLLM (ROCm-compatible)
+RUN pip install --no-cache-dir vllm
+
+# ── Application Stage ────────────────────────────────────────
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Expose ports: 8000 (vLLM) + 8080 (FastAPI)
+EXPOSE 8000 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8080/api/health || exit 1
+
+# Launch both vLLM inference server and FastAPI app
+CMD ["bash", "scripts/launch.sh"]
