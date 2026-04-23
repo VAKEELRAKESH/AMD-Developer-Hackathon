@@ -43,3 +43,8 @@ out/
 # ── Logs ─────────────────────────────────────────────────────
 *.log
 logs/
+node_modules/ 
+dist/ 
+build/ 
+.env 
+*.log 
