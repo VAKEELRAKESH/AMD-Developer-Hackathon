@@ -25,3 +25,9 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 asyncio_mode = "auto"
+
+[tool.pyright]
+include = ["backend"]
+extraPaths = ["backend"]
+reportMissingModuleSource = "none"
+reportMissingImports = "warning"

@@ -49,8 +49,14 @@ class InferenceClient:
                     api_key="not-needed",
                 )
             case InferenceBackend.HF_API:
+                if not settings.hf_token or settings.hf_token.startswith("hf_xxx"):
+                    logger.warning(
+                        "HF_TOKEN is missing or still a placeholder — "
+                        "set a real token in backend/.env  "
+                        "(get one at https://huggingface.co/settings/tokens)"
+                    )
                 return AsyncOpenAI(
-                    base_url="https://api-inference.huggingface.co/v1",
+                    base_url="https://router.huggingface.co/v1",
                     api_key=settings.hf_token,
                 )
 

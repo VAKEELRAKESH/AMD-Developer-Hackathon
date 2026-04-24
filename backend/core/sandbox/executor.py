@@ -6,6 +6,7 @@ resource limits and no network access. Captures stdout, stderr,
 and exit codes for the Reviewer Agent.
 """
 
+import asyncio
 import logging
 import tempfile
 from pathlib import Path
@@ -99,21 +100,24 @@ class SandboxExecutor:
 
             # 3. Run the container
             try:
-                output = self.client.containers.run(
-                    image=image,
-                    command=["sh", "-c", command],
-                    volumes={tmpdir: {"bind": "/app", "mode": "ro"}},
-                    working_dir="/app",
-                    mem_limit=self.memory_limit,
-                    cpu_quota=self.cpu_quota,
-                    network_mode="none",
-                    read_only=False,  # Allow pip install to work in tmpfs
-                    tmpfs={"/tmp": "size=64m"},
-                    remove=True,
-                    detach=False,
-                    stdout=True,
-                    stderr=True,
-                    timeout=self.timeout,
+                output = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.client.containers.run(
+                        image=image,
+                        command=["sh", "-c", command],
+                        volumes={tmpdir: {"bind": "/app", "mode": "ro"}},
+                        working_dir="/app",
+                        mem_limit=self.memory_limit,
+                        cpu_quota=self.cpu_quota,
+                        network_mode="none",
+                        read_only=False,  # Allow pip install to work in tmpfs
+                        tmpfs={"/tmp": "size=64m"},
+                        remove=True,
+                        detach=False,
+                        stdout=True,
+                        stderr=True,
+                        timeout=self.timeout,
+                    ),
                 )
 
                 return {

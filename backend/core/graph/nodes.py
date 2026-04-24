@@ -118,10 +118,18 @@ async def engineer_node(state: ForgeState) -> dict:
     - If no patches, trigger a full regeneration with the failure context
       visible in the prompt.
     """
-    schema    = state["architecture_schema"]
+    schema    = state.get("architecture_schema")
     existing  = state.get("code_blocks")
     iteration = state.get("iteration_count", 0)
     review    = state.get("review_result") or {}
+
+    # Guard: architect may have failed, leaving schema as None
+    if schema is None:
+        logger.error("[Engineer] No architecture_schema — architect likely failed")
+        return {
+            "phase": "failed",
+            "messages": [{"role": "system", "content": "Engineer skipped: no architecture schema available (architect failed)"}],
+        }
 
     # ── Re-entry: patches already applied by reviewer_node ───────────────────
     if iteration > 0 and existing and review.get("patches"):
@@ -248,9 +256,20 @@ async def sandbox_node(state: ForgeState) -> dict:
     a simulation run, AgentForge never ships code without executing it in
     an isolated environment first.  The sandbox is the Digital Twin.
     """
-    schema      = state["architecture_schema"]
-    code_blocks = state["code_blocks"]
+    schema      = state.get("architecture_schema")
+    code_blocks = state.get("code_blocks")
     iteration   = state.get("iteration_count", 0)
+
+    # Guard: upstream nodes may have failed
+    if schema is None or code_blocks is None:
+        logger.error("[Sandbox] Missing schema or code_blocks — skipping")
+        return {
+            "sandbox_exit_code": -1,
+            "sandbox_stdout": "",
+            "sandbox_stderr": "Sandbox skipped: no code to execute (upstream agent failed)",
+            "phase": "failed",
+            "messages": [{"role": "system", "content": "Sandbox skipped: upstream agent failed"}],
+        }
 
     entry_point = detect_entry_point(schema)
     language    = detect_language(schema)

@@ -23,12 +23,14 @@ export function useForgeStream() {
   const [isRunning, setIsRunning] = useState(false);
   const [currentPhase, setCurrentPhase] = useState<string>("idle");
   const [codeBlocks, setCodeBlocks] = useState<CodeBlocksMap>({});
+  const [gpuTelemetry, setGpuTelemetry] = useState<Record<string, unknown> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   const startGeneration = useCallback((prompt: string) => {
     setIsRunning(true);
     setUpdates([]);
     setCodeBlocks({});
+    setGpuTelemetry(null);
     setCurrentPhase("intake");
 
     const wsUrl =
@@ -47,6 +49,10 @@ export function useForgeStream() {
 
         if (update.phase) {
           setCurrentPhase(update.phase);
+        }
+
+        if (update.data?.gpu_telemetry) {
+          setGpuTelemetry(update.data.gpu_telemetry as Record<string, unknown>);
         }
 
         // Extract code blocks from engineer updates
@@ -95,6 +101,7 @@ export function useForgeStream() {
     isRunning,
     currentPhase,
     codeBlocks,
+    gpuTelemetry,
     startGeneration,
     cancel,
   };
