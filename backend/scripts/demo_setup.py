@@ -7,10 +7,18 @@ Used for demonstrating the self-debugging loop when API constraints or latency l
 
 import json
 import logging
-import asyncio
+import sys
+import os
 from pathlib import Path
-from core.graph.state import ForgeState
-from core.sandbox.executor import SandboxExecutor
+
+# Add project root to sys.path to support 'backend.' prefixed imports
+_root = str(Path(__file__).resolve().parent.parent.parent)
+if _root not in sys.path:
+    sys.path.append(_root)
+
+import asyncio
+from backend.core.graph.state import ForgeState
+from backend.core.sandbox.executor import SandboxExecutor
 
 logging.basicConfig(level=logging.INFO, format="[Demo Setup] %(message)s")
 

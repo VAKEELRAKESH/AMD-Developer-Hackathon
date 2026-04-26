@@ -5,8 +5,8 @@ Status Endpoint — REST API for checking system and session status.
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from core.config import settings
-from core.inference.router import detect_backend, get_backend_info
+from backend.core.config import settings
+from backend.core.inference.router import detect_backend, get_backend_info
 
 router = APIRouter()
 

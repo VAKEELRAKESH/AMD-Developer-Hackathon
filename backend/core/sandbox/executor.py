@@ -14,7 +14,7 @@ from pathlib import Path
 import docker
 from docker.errors import ContainerError, ImageNotFound, APIError
 
-from core.config import settings
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +115,7 @@ class SandboxExecutor:
                         remove=True,
                         detach=False,
                         stdout=True,
-                        stderr=True,
-                        timeout=self.timeout,
+                        stderr=True, # type: ignore
                     ),
                 )
 
@@ -128,10 +127,11 @@ class SandboxExecutor:
                 }
 
             except ContainerError as e:
+                err_msg = e.stderr.decode("utf-8") if isinstance(e.stderr, bytes) else str(e.stderr)
                 return {
                     "exit_code": e.exit_status,
-                    "stdout": e.output.decode("utf-8") if e.output else "",
-                    "stderr": e.stderr.decode("utf-8") if e.stderr else str(e),
+                    "stdout": "",
+                    "stderr": err_msg or str(e),
                     "timed_out": False,
                 }
 
@@ -205,7 +205,7 @@ class SandboxExecutor:
 
 def detect_entry_point(architecture_schema: dict) -> str:
     """Infer the entry point file from the architecture schema."""
-    file_tree = architecture_schema.get("file_tree", [])
+    file_tree = architecture_schema.get("file_tree") or []
 
     # Check for common entry points
     candidates = ["main.py", "app.py", "server.py", "index.js", "index.ts"]
@@ -224,7 +224,8 @@ def detect_entry_point(architecture_schema: dict) -> str:
 
 def detect_language(architecture_schema: dict) -> str:
     """Infer the primary language from the architecture schema."""
-    backend = architecture_schema.get("tech_stack", {}).get("backend", "")
+    tech_stack = architecture_schema.get("tech_stack") or {}
+    backend = tech_stack.get("backend", "")
 
     if backend in ("fastapi", "flask", "django"):
         return "python"
@@ -232,7 +233,7 @@ def detect_language(architecture_schema: dict) -> str:
         return "node"
 
     # Fallback: check file extensions
-    file_tree = architecture_schema.get("file_tree", [])
+    file_tree = architecture_schema.get("file_tree") or []
     py_count = sum(1 for f in file_tree if f.endswith(".py"))
     js_count = sum(1 for f in file_tree if f.endswith((".js", ".ts", ".tsx")))
 

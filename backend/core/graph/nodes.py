@@ -17,12 +17,12 @@ import logging
 import time
 from pathlib import Path
 
-from core.graph.state import ForgeState
-from core.agents.architect import run_architect
-from core.agents.engineer import run_engineer
-from core.agents.reviewer import run_reviewer, apply_patches
-from core.sandbox.executor import SandboxExecutor, detect_entry_point, detect_language
-from core.inference.client import InferenceClient
+from backend.core.graph.state import ForgeState
+from backend.core.agents.architect import run_architect
+from backend.core.agents.engineer import run_engineer
+from backend.core.agents.reviewer import run_reviewer, apply_patches
+from backend.core.sandbox.executor import SandboxExecutor, detect_entry_point, detect_language
+from backend.core.inference.client import InferenceClient
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +65,10 @@ async def architect_node(state: ForgeState) -> dict:
         }
 
     elapsed = round(time.monotonic() - t0, 1)
-    file_count  = len(schema.get("file_tree", []))
-    route_count = len(schema.get("api_routes", []))
-    model_count = len(schema.get("data_models", []))
+    schema = schema or {}
+    file_count  = len(schema.get("file_tree") or [])
+    route_count = len(schema.get("api_routes") or [])
+    model_count = len(schema.get("data_models") or [])
 
     logger.info(
         f"[Architect] Done in {elapsed}s — "
@@ -149,7 +150,7 @@ async def engineer_node(state: ForgeState) -> dict:
         }
 
     # ── Full generation run ───────────────────────────────────────────────────
-    file_tree = schema.get("file_tree", [])
+    file_tree = schema.get("file_tree") or []
     logger.info(
         f"[Engineer] Generating {len(file_tree)} files "
         f"(iteration={iteration})"
@@ -368,11 +369,11 @@ async def reviewer_node(state: ForgeState) -> dict:
 
     try:
         review_result = await run_reviewer(
-            architecture_schema = state["architecture_schema"],
-            code_blocks         = state["code_blocks"],
-            exit_code           = state.get("sandbox_exit_code", -1),
+            architecture_schema = state.get("architecture_schema") or {},
+            code_blocks         = state.get("code_blocks") or {},
+            exit_code           = state.get("sandbox_exit_code") or -1,
             stderr              = stderr,
-            stdout              = state.get("sandbox_stdout", "") or "",
+            stdout              = state.get("sandbox_stdout") or "",
             failure_memory      = state.get("failure_memory", []),
             iteration           = iteration,
             client              = _get_client(),
@@ -389,7 +390,7 @@ async def reviewer_node(state: ForgeState) -> dict:
 
     # Apply patches to the current code
     patches      = review_result.get("patches", [])
-    patched_code = apply_patches(state["code_blocks"], patches)
+    patched_code = apply_patches(state.get("code_blocks") or {}, patches)
 
     # Append to failure memory (outcome = "pending" until next sandbox run)
     new_memory = {

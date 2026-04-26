@@ -14,14 +14,14 @@ Graph topology:
 import logging
 from langgraph.graph import StateGraph, START, END
 
-from core.graph.state import ForgeState
-from core.graph.nodes import (
+from backend.core.graph.state import ForgeState
+from backend.core.graph.nodes import (
     architect_node,
     engineer_node,
     sandbox_node,
     reviewer_node,
 )
-from core.graph.edges import should_retry_or_deploy
+from backend.core.graph.edges import should_retry_or_deploy
 
 logger = logging.getLogger(__name__)
 

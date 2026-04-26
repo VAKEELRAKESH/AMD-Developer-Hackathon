@@ -6,7 +6,7 @@ the current state. Used with LangGraph's add_conditional_edges().
 """
 
 import logging
-from core.graph.state import ForgeState
+from backend.core.graph.state import ForgeState
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def should_retry_or_deploy(state: ForgeState) -> str:
     if iteration >= max_iter:
         logger.warning(
             f"[Edge] Max iterations ({max_iter}) reached → failed. "
-            f"Last error: {state.get('sandbox_stderr', 'N/A')[:200]}"
+            f"Last error: {(state.get('sandbox_stderr') or 'N/A')[:200]}"
         )
         return "failed"
 

@@ -13,6 +13,15 @@ Deployment variants:
   Dev        → uvicorn main:app --reload --port 8080
 """
 
+import sys
+import os
+from pathlib import Path
+
+# Add project root to sys.path to support 'backend.' prefixed imports
+_root = str(Path(__file__).resolve().parent.parent)
+if _root not in sys.path:
+    sys.path.append(_root)
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -21,14 +30,14 @@ import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.config import settings
-from core.inference.router import detect_backend, get_backend_info
-from core.inference.gpu_manager import gpu_manager
-from core.inference.client import InferenceClient
+from backend.core.config import settings
+from backend.core.inference.router import detect_backend, get_backend_info
+from backend.core.inference.gpu_manager import gpu_manager
+from backend.core.inference.client import InferenceClient
 
-from api.routes.status   import router as status_router
-from api.routes.deploy   import router as deploy_router
-from api.websocket        import websocket_endpoint
+from backend.api.routes.status   import router as status_router
+from backend.api.routes.deploy   import router as deploy_router
+from backend.api.websocket        import websocket_endpoint
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(

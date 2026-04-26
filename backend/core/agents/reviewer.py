@@ -8,7 +8,7 @@ import json
 import logging
 from pathlib import Path
 
-from core.inference.client import InferenceClient
+from backend.core.inference.client import InferenceClient
 
 logger = logging.getLogger(__name__)
 

@@ -30,10 +30,10 @@ from typing import AsyncIterator
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from core.graph.builder import build_forge_graph
-from core.graph.state import ForgeState
-from core.inference.router import detect_backend, get_backend_info, InferenceBackend
-from core.config import settings
+from backend.core.graph.builder import build_forge_graph
+from backend.core.graph.state import ForgeState
+from backend.core.inference.router import detect_backend, get_backend_info, InferenceBackend
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 

@@ -28,6 +28,7 @@ asyncio_mode = "auto"
 
 [tool.pyright]
 include = ["backend"]
-extraPaths = ["backend"]
-reportMissingModuleSource = "none"
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.11"
 reportMissingImports = "warning"

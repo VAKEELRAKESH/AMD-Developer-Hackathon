@@ -8,12 +8,13 @@ underlying backend (vLLM/ROCm, vLLM/CUDA, llama.cpp, or HuggingFace API).
 import os
 import json
 import logging
-from typing import AsyncIterator
+import time
+from typing import AsyncIterator, Any
 
 from openai import AsyncOpenAI
 
 from .router import detect_backend, InferenceBackend
-from core.config import settings
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ class InferenceClient:
 
     async def generate(
         self,
-        messages: list[dict],
+        messages: Any,
         temperature: float = 0.3,
         max_tokens: int = 4096,
         response_format: dict | None = None,
@@ -101,7 +102,7 @@ class InferenceClient:
 
         try:
             response = await self._client.chat.completions.create(**params)
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content or ""
             logger.debug(
                 f"Generated {len(content)} chars "
                 f"(tokens: {response.usage.completion_tokens if response.usage else 'N/A'})"
@@ -113,7 +114,7 @@ class InferenceClient:
 
     async def generate_stream(
         self,
-        messages: list[dict],
+        messages: Any,
         temperature: float = 0.3,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
@@ -142,7 +143,7 @@ class InferenceClient:
 
     async def generate_json(
         self,
-        messages: list[dict],
+        messages: Any,
         temperature: float = 0.2,
         max_tokens: int = 4096,
     ) -> dict:
